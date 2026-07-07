@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light dark; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  @apply bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100;
+}
+
+.card {
+  @apply rounded-2xl border border-slate-200/70 bg-white/80 backdrop-blur
+    shadow-sm hover:shadow-lg transition-all duration-300
+    dark:border-slate-800 dark:bg-slate-900/70;
+}
+
+.skeleton {
+  @apply relative overflow-hidden bg-slate-200/70 dark:bg-slate-800 rounded;
+}
+.skeleton::after {
+  content: '';
+  @apply absolute inset-0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+.btn {
+  @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition
+    bg-brand text-white hover:bg-brand-dark disabled:opacity-50;
+}
+.btn-ghost {
+  @apply inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition
+    border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800;
+}
+.input {
+  @apply w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900
+    px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/40;
+}
+.chip {
+  @apply px-3 py-1.5 rounded-full text-sm font-medium transition cursor-pointer;
+}
+
+/* 瀑布流布局：JS 分列 + flex，卡片自适应高度，从左到右按顺序排列 */
+.th-masonry {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+.th-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  flex: 1 1 0;
+  min-width: 0;
+}
