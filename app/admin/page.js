@@ -1,31 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-function Login({ onOk }) {
-  const [pw, setPw] = useState('');
-  const [err, setErr] = useState('');
-  const submit = async () => {
-    const r = await fetch('/api/admin/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw }),
-    });
-    if (r.ok) onOk(); else setErr('密码错误');
-  };
-  return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="card p-8 w-full max-w-sm">
-        <h1 className="text-xl font-bold mb-1">TrendHub 管理后台</h1>
-        <p className="text-sm text-slate-500 mb-6">请输入管理员密码</p>
-        <input type="password" className="input mb-3" placeholder="密码"
-          value={pw} onChange={(e) => setPw(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()} />
-        {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
-        <button className="btn w-full justify-center" onClick={submit}>登录</button>
-      </div>
-    </div>
-  );
-}
-
 function Toast({ msg }) {
   if (!msg) return null;
   return (
@@ -46,7 +21,9 @@ function Section({ title, children, desc }) {
 }
 
 export default function Admin() {
-  const [authed, setAuthed] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [account, setAccount] = useState(null);
+  const [accountPasswords, setAccountPasswords] = useState({ current: '', next: '' });
   const [settings, setSettings] = useState(null);
   const [sources, setSources] = useState([]);
   const [recipients, setRecipients] = useState([]);
@@ -60,13 +37,23 @@ export default function Admin() {
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
   const loadAll = async () => {
+    const auth = await (await fetch('/api/auth/me')).json();
+    if (!auth.user || auth.user.role !== 'admin') {
+      window.location.href = auth.user ? '/' : '/login?next=/admin';
+      return;
+    }
+    setAccount({
+      username: auth.user.username || '',
+      email: auth.user.email || '',
+      display_name: auth.user.display_name || '',
+    });
     const s = await fetch('/api/admin/settings');
-    if (s.status === 401) { setAuthed(false); return; }
-    setAuthed(true);
+    if (s.status === 401) { window.location.href = '/'; return; }
     setSettings(await s.json());
     setSources((await (await fetch('/api/admin/sources')).json()).items);
     setRecipients((await (await fetch('/api/admin/recipients')).json()).items);
     setLogs((await (await fetch('/api/admin/actions')).json()).logs);
+    setLoading(false);
   };
 
   useEffect(() => { loadAll(); }, []);
@@ -81,6 +68,25 @@ export default function Admin() {
     loadAll();
   };
 
+  const saveAccount = async () => {
+    setBusy('account');
+    const response = await fetch('/api/user/account', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...account,
+        current_password: accountPasswords.current,
+        new_password: accountPasswords.next,
+      }),
+    });
+    const data = await response.json();
+    setBusy('');
+    if (!response.ok) return flash('失败：' + (data.error || '账号更新失败'));
+    setAccount({ username: data.user.username, email: data.user.email, display_name: data.user.display_name });
+    setAccountPasswords({ current: '', next: '' });
+    flash('管理员账号已更新');
+  };
+
   const action = async (payload, label) => {
     setBusy(label);
     const r = await fetch('/api/admin/actions', {
@@ -91,6 +97,7 @@ export default function Admin() {
     setBusy('');
     if (d.ok) {
       if (payload.action === 'fetch') flash(`抓取完成：仓库 ${d.repoCount} · 开发者 ${d.devCount} · 新闻 ${d.newsCount} · 论文 ${d.paperCount}`);
+      else if (payload.action === 'fetch-explore') flash(`探索候选池已更新：${d.exploreCount} 个项目`);
       else if (payload.action === 'verify-smtp') flash('SMTP 连接成功');
       else flash(`已发送 ${d.sent} 封`);
       loadAll();
@@ -127,11 +134,12 @@ export default function Admin() {
     await fetch('/api/admin/recipients', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
     loadAll();
   };
-  const logout = async () => { await fetch('/api/admin/login', { method: 'DELETE' }); setAuthed(false); };
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/';
+  };
 
-  if (authed === null) return <div className="min-h-screen flex items-center justify-center text-slate-400">加载中…</div>;
-  if (!authed) return <Login onOk={loadAll} />;
-  if (!settings) return null;
+  if (loading || !settings || !account) return <div className="min-h-screen flex items-center justify-center text-slate-400">加载中…</div>;
 
   const set = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
   const CATS = [['tech', '科技'], ['economy', '经济'], ['politics', '政治']];
@@ -153,6 +161,9 @@ export default function Admin() {
           <button className="btn" disabled={busy === 'fetch'} onClick={() => action({ action: 'fetch' }, 'fetch')}>
             {busy === 'fetch' ? '抓取中…' : '⟳ 立即抓取'}
           </button>
+          <button className="btn-ghost" disabled={busy === 'fetch-explore'} onClick={() => action({ action: 'fetch-explore' }, 'fetch-explore')}>
+            {busy === 'fetch-explore' ? '更新中…' : '✨ 更新探索池'}
+          </button>
           <button className="btn-ghost" disabled={busy === 'send'} onClick={() => action({ action: 'send' }, 'send')}>
             ✉ 立即推送汇总
           </button>
@@ -172,6 +183,11 @@ export default function Admin() {
               <span className="text-sm text-slate-500">邮件推送时间</span>
               <input className="input mt-1" value={settings.cron_email} onChange={(e) => set('cron_email', e.target.value)} />
               <span className="text-xs text-slate-400">默认 0 8 * * *（每日 08:00）</span>
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-sm text-slate-500">探索候选池更新时间</span>
+              <input className="input mt-1" value={settings.cron_explore || '30 3 * * *'} onChange={(e) => set('cron_explore', e.target.value)} />
+              <span className="text-xs text-slate-400">默认 30 3 * * *（每日 03:30）；可在服务端配置 GITHUB_TOKEN 提升 API 配额，Token 不会进入数据库。</span>
             </label>
             <label className="flex items-center gap-2 sm:col-span-2">
               <input type="checkbox" checked={settings.email_enabled === '1'}
@@ -194,6 +210,12 @@ export default function Admin() {
               <span className="text-sm text-slate-500">GitHub 语言过滤（逗号分隔，留空=全部）</span>
               <input className="input mt-1" placeholder="javascript, python, go"
                 value={settings.github_languages} onChange={(e) => set('github_languages', e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="text-sm text-slate-500">探索每批推荐数量</span>
+              <input className="input mt-1" type="number" min="6" max="60"
+                value={settings.explore_batch_size || '18'} onChange={(e) => set('explore_batch_size', e.target.value)} />
+              <span className="text-xs text-slate-400">允许 6～60，默认 18 个</span>
             </label>
             <label className="block sm:col-span-2">
               <span className="text-sm text-slate-500">arXiv 论文分类（逗号分隔）</span>
@@ -275,10 +297,41 @@ export default function Admin() {
           </div>
         </Section>
 
-        <Section title="安全" desc="修改后台登录密码（留空则不变）。">
-          <input className="input max-w-xs" type="password" placeholder="新密码"
-            value={settings.admin_password === '••••••••' ? '' : settings.admin_password}
-            onChange={(e) => set('admin_password', e.target.value)} />
+        <Section title="管理员账号" desc="后台权限由当前用户的 admin 角色控制。修改密码时需要填写当前密码。">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="text-sm text-slate-500">用户名</span>
+              <input className="input mt-1" value={account.username}
+                onChange={(e) => setAccount({ ...account, username: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="text-sm text-slate-500">昵称</span>
+              <input className="input mt-1" value={account.display_name}
+                onChange={(e) => setAccount({ ...account, display_name: e.target.value })} />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-sm text-slate-500">邮箱</span>
+              <input className="input mt-1" type="email" value={account.email}
+                onChange={(e) => setAccount({ ...account, email: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="text-sm text-slate-500">当前密码</span>
+              <input className="input mt-1" type="password" autoComplete="current-password"
+                placeholder="仅修改密码时需要"
+                value={accountPasswords.current}
+                onChange={(e) => setAccountPasswords({ ...accountPasswords, current: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="text-sm text-slate-500">新密码</span>
+              <input className="input mt-1" type="password" autoComplete="new-password"
+                placeholder="至少 8 位，留空则不修改"
+                value={accountPasswords.next}
+                onChange={(e) => setAccountPasswords({ ...accountPasswords, next: e.target.value })} />
+            </label>
+          </div>
+          <button className="btn mt-4" disabled={busy === 'account'} onClick={saveAccount}>
+            {busy === 'account' ? '保存中…' : '保存管理员账号'}
+          </button>
         </Section>
 
         <div className="flex justify-end">

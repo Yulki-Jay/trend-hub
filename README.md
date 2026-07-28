@@ -1,6 +1,6 @@
 # TrendHub · 资讯聚合平台
 
-实时抓取 **GitHub Trending 热门开源项目** 与 **全网热点新闻**（科技 / 经济 / 政治），
+实时抓取 **GitHub Trending 热门开源项目**、主动发现尚未登榜的有趣仓库，以及 **全网热点新闻**（科技 / 经济 / 政治），
 配套独立管理后台，可配置定时任务并每日向指定邮箱推送数据汇总。
 
 ---
@@ -14,26 +14,30 @@
 ### 2. 用户角色
 | 角色 | 说明 | 入口 |
 |------|------|------|
-| 访客 | 浏览热榜/新闻，无需登录 | `/` 前台 |
-| 管理员 | 配置数据源、定时任务、邮件推送 | `/admin`（密码保护）|
+| 访客 | 浏览热榜/新闻，无需登录，不显示收藏和不感兴趣操作 | `/` 前台 |
+| 注册用户 | 收藏项目/新闻/论文、管理探索偏好 | `/login` 注册或登录 |
+| 管理员 | 拥有 `admin` 角色，配置数据源、定时任务、账号和邮件推送 | `/admin`（服务端权限保护）|
 
 ### 3. 核心功能
 1. **GitHub Trending 抓取**：来源 `https://github.com/trending`，支持按语言、时间范围（日/周/月）抓取，记录 star、今日新增 star、fork、描述、作者。
-2. **热点新闻聚合**：聚合科技、经济、政治等多分类 RSS 源，去重、清洗、分类存储。
-3. **前台展示**：
+2. **GitHub 探索推荐**：通过 GitHub Search API 建立候选池，综合项目新鲜度、活跃度、Star 增长和质量评分进行多样化推荐，并排除最近已进入 Trending 的项目。
+3. **热点新闻聚合**：聚合科技、经济、政治等多分类 RSS 源，去重、清洗、分类存储。
+4. **前台展示**：
    - 首页热榜与新闻双栏 / Tab 切换
    - 分类筛选、关键词搜索、时间范围切换
    - 卡片式布局，深浅色主题，响应式，加载/骨架动画
-4. **管理后台**：
+   - 用户注册登录，收藏与“不感兴趣”偏好按账号保存
+5. **管理后台**：
    - 数据源管理（增删改启停 RSS 源、GitHub 语言过滤）
+   - 配置探索模块每批推荐数量（6～60）
    - 定时任务配置（cron 表达式，抓取频率、邮件推送时间）
    - 手动触发抓取 / 立即发送测试邮件
    - 抓取历史与任务运行日志
    - 邮件收件人管理与 SMTP 配置
-5. **邮件推送**：每日定时将 Top 开源项目 + 热点新闻汇总成 HTML 邮件发送至指定邮箱。
+6. **邮件推送**：每日定时将 Top 开源项目 + 热点新闻汇总成 HTML 邮件发送至指定邮箱。
 
 ### 4. 补充完善的实用配套功能（产品增值）
-- **收藏 / 稍后读**（本地存储，无需登录）
+- **收藏 / 稍后读**（登录后按账号存储）
 - **数据统计看板**：抓取量趋势、分类分布、热度 Top
 - **RSS / JSON 输出**：平台自身对外提供聚合订阅源
 - **搜索与高级筛选**：跨热榜+新闻全文检索
@@ -58,6 +62,10 @@
 
 ### 7. 数据模型
 - `repos` GitHub 热榜项目
+- `explore_repos` GitHub 探索候选池与推荐评分
+- `repo_snapshots` 探索项目 Star/Fork 每日快照
+- `users`、`user_sessions` 用户账号与会话
+- `user_favorites`、`user_dismissals` 用户收藏和探索偏好
 - `news` 新闻条目
 - `sources` 新闻/数据源配置
 - `settings` 全局配置（SMTP、后台密码、cron 等）
@@ -76,14 +84,23 @@ npm run dev         # 开发模式  http://localhost:43080
 npm run build && npm start
 ```
 
-管理后台：`http://localhost:43080/admin`，默认密码 `admin123`（后台可改）。
+默认管理员账号：用户名 `admin`，密码 `admin123`。首次登录后请在后台“管理员账号”中修改。
+未登录访问 `/admin` 会跳转登录页，普通用户访问会返回首页。
 
 ## 三、环境变量（可选，后台亦可配置）
 ```
 ADMIN_PASSWORD=admin123
+ADMIN_USERNAME=admin
+ADMIN_EMAIL=admin@trendhub.local
+GITHUB_TOKEN=github_pat_xxx
+COOKIE_SECURE=0
 SMTP_HOST=smtp.qq.com
 SMTP_PORT=465
 SMTP_USER=you@qq.com
 SMTP_PASS=your_smtp_token
 SMTP_FROM=TrendHub <you@qq.com>
 ```
+
+`GITHUB_TOKEN` 可选，但推荐配置，用于提高 GitHub Search API 配额。Token 只在服务端读取，不会写入 SQLite 或返回前端；仅需公开仓库读取权限。
+
+通过 HTTPS 部署时将 `COOKIE_SECURE` 设置为 `1`；本地 HTTP 运行保持为 `0`。

@@ -1,38 +1,61 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-function load(key) {
-  try { return Object.values(JSON.parse(localStorage.getItem(key) || '{}')).filter((v) => v && typeof v === 'object'); }
-  catch { return []; }
-}
-function remove(key, id) {
-  const obj = JSON.parse(localStorage.getItem(key) || '{}');
-  delete obj[id];
-  localStorage.setItem(key, JSON.stringify(obj));
-}
+const TYPES = ['repo', 'developer', 'news', 'paper'];
 
 export default function Favorites() {
-  const [repos, setRepos] = useState([]);
-  const [devs, setDevs] = useState([]);
-  const [news, setNews] = useState([]);
-  const [papers, setPapers] = useState([]);
-  const [tab, setTab] = useState('repos');
+  const [user, setUser] = useState(undefined);
+  const [items, setItems] = useState({ repo: {}, developer: {}, news: {}, paper: {} });
+  const [tab, setTab] = useState('repo');
 
-  const refresh = () => {
-    setRepos(load('th_fav_repos'));
-    setDevs(load('th_fav_devs'));
-    setNews(load('th_fav_news'));
-    setPapers(load('th_fav_papers'));
+  const loadAll = async () => {
+    const auth = await (await fetch('/api/auth/me')).json();
+    setUser(auth.user || null);
+    if (!auth.user) return;
+    const results = await Promise.all(TYPES.map(async (type) => {
+      const response = await fetch('/api/user/preferences?type=' + type);
+      return [type, response.ok ? (await response.json()).favorites : {}];
+    }));
+    setItems(Object.fromEntries(results));
   };
-  useEffect(refresh, []);
 
-  const del = (key, id, setter) => { remove(key, id); refresh(); };
+  useEffect(() => { loadAll(); }, []);
 
-  const TABS = [
-    { key: 'repos', label: `开源项目 (${repos.length})` },
-    { key: 'devs', label: `开发者 (${devs.length})` },
-    { key: 'news', label: `新闻 (${news.length})` },
-    { key: 'papers', label: `论文 (${papers.length})` },
+  const remove = async (type, key) => {
+    setItems((current) => {
+      const nextType = { ...current[type] };
+      delete nextType[key];
+      return { ...current, [type]: nextType };
+    });
+    await fetch('/api/user/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, key, action: 'unfavorite' }),
+    });
+  };
+
+  if (user === undefined) return <div className="min-h-screen flex items-center justify-center text-slate-400">加载中…</div>;
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="card max-w-sm p-8 text-center">
+          <div className="text-5xl mb-4">🔐</div>
+          <h1 className="text-xl font-bold">登录后查看收藏</h1>
+          <p className="mt-2 text-sm text-slate-500">收藏内容会与账号关联，并可以在不同设备访问。</p>
+          <a href="/login" className="btn mt-6 justify-center">登录 / 注册</a>
+          <a href="/" className="mt-4 block text-sm text-slate-400 hover:text-brand">返回首页</a>
+        </div>
+      </div>
+    );
+  }
+
+  const lists = Object.fromEntries(TYPES.map((type) => [type, Object.entries(items[type] || {})]));
+  const tabs = [
+    { key: 'repo', label: `开源项目 (${lists.repo.length})` },
+    { key: 'developer', label: `开发者 (${lists.developer.length})` },
+    { key: 'news', label: `新闻 (${lists.news.length})` },
+    { key: 'paper', label: `论文 (${lists.paper.length})` },
   ];
 
   return (
@@ -40,69 +63,54 @@ export default function Favorites() {
       <header className="sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-slate-950/70 border-b border-slate-200/60 dark:border-slate-800">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="font-bold flex items-center gap-2"><span className="text-brand">◆</span> 我的收藏</div>
+          <span className="text-xs text-slate-400">{user.display_name}</span>
           <a href="/" className="ml-auto btn-ghost">返回首页</a>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="flex gap-2 mb-6">
-          {TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`chip ${tab === t.key ? 'bg-brand text-white' : 'bg-slate-200/70 dark:bg-slate-800'}`}>{t.label}</button>
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {tabs.map((item) => (
+            <button key={item.key} onClick={() => setTab(item.key)}
+              className={`chip ${tab === item.key ? 'bg-brand text-white' : 'bg-slate-200/70 dark:bg-slate-800'}`}>
+              {item.label}
+            </button>
           ))}
         </div>
 
         <div className="space-y-3">
-          {tab === 'repos' && (repos.length ? repos.map((r) => (
-            <div key={r.full_name} className="card p-4 flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <a href={r.url} target="_blank" rel="noreferrer" className="font-semibold text-brand break-all">{r.full_name}</a>
-                <p className="text-sm text-slate-500 mt-1">{r.description}</p>
-                <div className="text-xs text-slate-400 mt-1">{r.language} · ⭐ {r.stars}</div>
-              </div>
-              <button className="text-red-500 text-xs" onClick={() => del('th_fav_repos', r.full_name)}>移除</button>
-            </div>
-          )) : <Empty />)}
-
-          {tab === 'devs' && (devs.length ? devs.map((d) => (
-            <div key={d.login} className="card p-4 flex items-start gap-3">
-              {d.avatar && <img src={d.avatar} alt="" className="w-10 h-10 rounded-full shrink-0" />}
-              <div className="flex-1 min-w-0">
-                <a href={d.url} target="_blank" rel="noreferrer" className="font-semibold">{d.name} <span className="text-slate-400 font-normal">@{d.login}</span></a>
-                {d.repo_name && <div className="text-sm text-brand mt-1 truncate">🔥 {d.repo_name}</div>}
-                {d.repo_desc && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{d.repo_desc}</p>}
-              </div>
-              <button className="text-red-500 text-xs" onClick={() => del('th_fav_devs', d.login)}>移除</button>
-            </div>
-          )) : <Empty />)}
-
-          {tab === 'news' && (news.length ? news.map((n) => (
-            <div key={n.url} className="card p-4 flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <a href={n.url} target="_blank" rel="noreferrer" className="font-semibold">{n.title}</a>
-                <p className="text-sm text-slate-500 mt-1">{n.summary}</p>
-                <div className="text-xs text-slate-400 mt-1">{n.source}</div>
-              </div>
-              <button className="text-red-500 text-xs" onClick={() => del('th_fav_news', n.url)}>移除</button>
-            </div>
-          )) : <Empty />)}
-
-          {tab === 'papers' && (papers.length ? papers.map((p) => (
-            <div key={p.url} className="card p-4 flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <a href={p.url} target="_blank" rel="noreferrer" className="font-semibold">{p.title}</a>
-                <p className="text-sm text-slate-500 mt-1">{p.summary}</p>
-                <div className="text-xs text-slate-400 mt-1">{p.source} · {p.category}</div>
-              </div>
-              <button className="text-red-500 text-xs" onClick={() => del('th_fav_papers', p.url)}>移除</button>
-            </div>
-          )) : <Empty />)}
+          {lists[tab].length ? lists[tab].map(([key, item]) => (
+            <FavoriteCard key={key} type={tab} item={item} onRemove={() => remove(tab, key)} />
+          )) : <Empty />}
         </div>
       </main>
     </div>
   );
 }
 
+function FavoriteCard({ type, item, onRemove }) {
+  const title = type === 'repo' ? item.full_name
+    : type === 'developer' ? `${item.name} @${item.login}`
+      : item.title;
+  const url = type === 'developer' ? item.url : item.url;
+  const summary = type === 'developer' ? item.repo_desc : item.description || item.summary;
+  const meta = type === 'repo' ? `${item.language || '其他'} · ⭐ ${item.stars || 0}`
+    : type === 'developer' ? item.repo_name
+      : type === 'news' ? item.source
+        : `${item.source || ''} · ${item.category || ''}`;
+  return (
+    <div className="card p-4 flex items-start gap-3">
+      {type === 'developer' && item.avatar && <img src={item.avatar} alt="" className="w-10 h-10 rounded-full shrink-0" />}
+      <div className="flex-1 min-w-0">
+        <a href={url} target="_blank" rel="noreferrer" className="font-semibold text-brand break-all">{title}</a>
+        {summary && <p className="text-sm text-slate-500 mt-1">{summary}</p>}
+        {meta && <div className="text-xs text-slate-400 mt-1">{meta}</div>}
+      </div>
+      <button className="text-red-500 text-xs" onClick={onRemove}>移除</button>
+    </div>
+  );
+}
+
 function Empty() {
-  return <div className="text-center py-20 text-slate-400"><div className="text-5xl mb-3">⭐</div>暂无收藏，点击卡片上的星标即可收藏。</div>;
+  return <div className="text-center py-20 text-slate-400"><div className="text-5xl mb-3">⭐</div>暂无收藏。</div>;
 }

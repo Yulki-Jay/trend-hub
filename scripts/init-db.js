@@ -1,7 +1,7 @@
 const db = require('../lib/db');
+const { ensureDefaultAdmin } = require('../lib/user-auth');
 
 const defaults = {
-  admin_password: process.env.ADMIN_PASSWORD || 'admin123',
   smtp_host: process.env.SMTP_HOST || '',
   smtp_port: process.env.SMTP_PORT || '465',
   smtp_secure: process.env.SMTP_SECURE || '1',
@@ -9,6 +9,8 @@ const defaults = {
   smtp_pass: process.env.SMTP_PASS || '',
   smtp_from: process.env.SMTP_FROM || '',
   cron_fetch: '0 */2 * * *',      // 每2小时抓取
+  cron_explore: '30 3 * * *',     // 每日03:30更新探索候选池
+  explore_batch_size: '18',        // 探索每批推荐数量
   cron_email: '0 8 * * *',        // 每日08:00推送
   github_languages: '',           // 空=全部
   email_enabled: '0',
@@ -24,6 +26,12 @@ const insertSetting = db.prepare(
   'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING'
 );
 for (const [k, v] of Object.entries(defaults)) insertSetting.run(k, String(v));
+
+const defaultAdmin = ensureDefaultAdmin({
+  username: process.env.ADMIN_USERNAME || 'admin',
+  email: process.env.ADMIN_EMAIL || 'admin@trendhub.local',
+  password: process.env.ADMIN_PASSWORD || 'admin123',
+});
 
 const seedSources = [
   // 科技（中文）
@@ -79,3 +87,4 @@ if (!hasSource) {
 }
 
 console.log('DB initialized. Sources:', db.prepare('SELECT COUNT(*) c FROM sources').get().c);
+console.log('Admin account:', defaultAdmin.username);
