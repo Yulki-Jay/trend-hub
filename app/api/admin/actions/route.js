@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { checkAuth } from '../../../../lib/auth';
-import { runFetchAll, runExploreJob } from '../../../../lib/jobs';
+import {
+  runFetchAll,
+  runGithubJob,
+  runNewsJob,
+  runPaperJob,
+  runExploreJob,
+} from '../../../../lib/jobs';
 import { sendDigest, verifySmtp } from '../../../../lib/mailer';
 import db from '../../../../lib/db';
 
@@ -17,6 +23,18 @@ export async function POST(req) {
     if (action === 'fetch-explore') {
       const exploreCount = await runExploreJob();
       return NextResponse.json({ ok: true, exploreCount });
+    }
+    if (action === 'fetch-github') {
+      const result = await runGithubJob();
+      return NextResponse.json({ ok: true, ...result });
+    }
+    if (action === 'fetch-news') {
+      const newsCount = await runNewsJob();
+      return NextResponse.json({ ok: true, newsCount });
+    }
+    if (action === 'fetch-papers') {
+      const paperCount = await runPaperJob();
+      return NextResponse.json({ ok: true, paperCount });
     }
     if (action === 'send') {
       const n = await sendDigest();

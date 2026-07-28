@@ -6,6 +6,7 @@ import { reloadScheduler } from '../../../../lib/scheduler';
 function mask(s) {
   const out = { ...s };
   if (out.smtp_pass) out.smtp_pass = '••••••••';
+  if (out.semantic_scholar_key) out.semantic_scholar_key = '••••••••';
   delete out.admin_password;
   return out;
 }
@@ -19,7 +20,7 @@ export async function POST(req) {
   if (!checkAuth()) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const body = await req.json();
   // 不覆盖被掩码的敏感字段
-  for (const k of ['smtp_pass']) {
+  for (const k of ['smtp_pass', 'semantic_scholar_key']) {
     if (body[k] === '••••••••' || body[k] === '') delete body[k];
   }
   delete body.admin_password;
