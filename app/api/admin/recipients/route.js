@@ -11,8 +11,9 @@ export async function GET() {
 
 export async function POST(req) {
   if (!checkAuth()) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const { email } = await req.json();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email || ''))
+  const body = await req.json();
+  const email = String(body.email || '').trim().toLowerCase();
+  if (email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
     return NextResponse.json({ error: '邮箱格式错误' }, { status: 400 });
   try {
     db.prepare('INSERT INTO recipients(email) VALUES(?)').run(email);

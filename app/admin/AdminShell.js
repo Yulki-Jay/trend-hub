@@ -1,4 +1,5 @@
 'use client';
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 
 const GROUPS = [
@@ -9,6 +10,7 @@ const GROUPS = [
   {
     label: '内容运营',
     items: [
+      { href: '/admin/content', icon: '▦', label: '内容库' },
       { href: '/admin/github', icon: '◆', label: 'GitHub 运营' },
       { href: '/admin/news', icon: '▤', label: '新闻源' },
       { href: '/admin/papers', icon: '▧', label: '论文' },
@@ -20,11 +22,8 @@ const GROUPS = [
       { href: '/admin/jobs', icon: '◷', label: '定时任务' },
       { href: '/admin/email', icon: '✉', label: '邮件推送' },
       { href: '/admin/users', icon: '♙', label: '用户管理' },
+      { href: '/admin/system', icon: '⚙', label: '系统策略' },
     ],
-  },
-  {
-    label: '账号',
-    items: [{ href: '/admin/account', icon: '⚙', label: '管理员账号' }],
   },
 ];
 
@@ -32,9 +31,41 @@ export default function AdminShell({ user, children }) {
   const pathname = usePathname();
   const active = (href) => href === '/admin' ? pathname === href : pathname.startsWith(href);
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/';
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    window.location.replace('/');
   };
+
+  useEffect(() => {
+    let active = true;
+    const verify = async () => {
+      try {
+        const response = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' });
+        const auth = await response.json();
+        if (!active) return;
+        if (!auth.user) {
+          const next = `${window.location.pathname}${window.location.search}`;
+          window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+        } else if (auth.user.must_change_password) {
+          window.location.replace('/account?security=required');
+        } else if (!auth.isAdmin) {
+          window.location.replace('/access-denied');
+        }
+      } catch {
+        // 短暂网络异常不应主动清除本地界面；后续接口仍会在 401 时跳转登录。
+      }
+    };
+    const onVisible = () => document.visibilityState === 'visible' && verify();
+    verify();
+    window.addEventListener('pageshow', verify);
+    window.addEventListener('focus', verify);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      active = false;
+      window.removeEventListener('pageshow', verify);
+      window.removeEventListener('focus', verify);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   const links = GROUPS.flatMap((group) => group.items);
 
@@ -65,7 +96,7 @@ export default function AdminShell({ user, children }) {
           <div className="px-3 text-sm font-medium truncate">{user.display_name}</div>
           <div className="px-3 text-xs text-slate-400 truncate">@{user.username}</div>
           <div className="mt-3 flex gap-2">
-            <a href="/" className="btn-ghost flex-1 justify-center text-xs">前台</a>
+            <a href="/account" className="btn-ghost flex-1 justify-center text-xs">个人账号</a>
             <button onClick={logout} className="btn-ghost flex-1 justify-center text-xs">退出</button>
           </div>
         </div>
@@ -76,6 +107,7 @@ export default function AdminShell({ user, children }) {
           <div className="flex items-center gap-3 px-4 py-3">
             <span className="font-bold"><span className="text-brand">◆</span> Admin</span>
             <a href="/" className="ml-auto text-xs text-slate-500">前台</a>
+            <a href="/account" className="text-xs text-slate-500">个人账号</a>
             <button onClick={logout} className="text-xs text-slate-500">退出</button>
           </div>
           <nav className="flex gap-2 overflow-x-auto px-4 pb-3">

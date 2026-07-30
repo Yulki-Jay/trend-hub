@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Loading, PageHeader, Panel, StatusBadge, Toast } from './components';
+import { adminFetch } from './api';
 
 const STAT_META = [
   ['reposToday', '今日热榜', 'GitHub Trending 日榜', '🔥'],
@@ -16,12 +17,12 @@ export default function AdminOverview() {
   const [busy, setBusy] = useState('');
   const [toast, setToast] = useState('');
   const flash = (message) => { setToast(message); setTimeout(() => setToast(''), 2600); };
-  const load = () => fetch('/api/admin/overview').then((r) => r.json()).then(setData);
+  const load = () => adminFetch('/api/admin/overview').then((r) => r.json()).then(setData);
   useEffect(() => { load(); }, []);
 
   const action = async (name, label) => {
     setBusy(name);
-    const response = await fetch('/api/admin/actions', {
+    const response = await adminFetch('/api/admin/actions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: name }),
     });

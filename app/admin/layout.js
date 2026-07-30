@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 export default function AdminLayout({ children }) {
   const user = getCurrentUser();
   if (!user) redirect('/login?next=/admin');
-  if (user.role !== 'admin') redirect('/');
-  return <AdminShell user={user}>{children}</AdminShell>;
+  if (user.must_change_password) redirect('/account?security=required');
+  if (user.role !== 'admin') redirect('/access-denied');
+  return <AdminShell user={{ username: user.username, display_name: user.display_name }}>{children}</AdminShell>;
 }

@@ -33,8 +33,10 @@
    - GitHub 运营：热榜语言、探索数量及模块级抓取
    - 新闻源与论文运营：数据源、分类、API 配额配置
    - 定时任务与邮件推送：cron、SMTP、收件人与汇总规模
-   - 用户管理：角色分配、账号停用和管理员自保护
-   - 管理员账号：用户名、邮箱和密码维护
+   - 用户管理：主动创建账号、搜索筛选、资料编辑、角色分配、账号启停和密码重置
+   - 内容库：统一检索新闻、论文、GitHub 热榜与探索候选，支持批量清理
+   - 系统策略：配置站点名称、介绍和公开注册开关
+   - 个人账号：所有登录用户均可在 `/account` 修改用户名、昵称、邮箱和密码
 6. **邮件推送**：每日定时将 Top 开源项目 + 热点新闻汇总成 HTML 邮件发送至指定邮箱。
 
 ### 4. 补充完善的实用配套功能（产品增值）
@@ -85,16 +87,20 @@ npm run dev         # 开发模式  http://localhost:43080
 npm run build && npm start
 ```
 
-默认管理员账号：用户名 `admin`，密码 `admin123`。首次登录后请在后台“管理员账号”中修改。
+默认管理员用户名为 `admin`。如果没有设置 `ADMIN_PASSWORD`，初始化命令会生成一次性随机密码并只在终端显示一次；首次登录必须立即修改。
+用户名和邮箱均为全局唯一值，并且用户名不区分大小写；管理员可以在“用户管理”中主动创建用户。
+如果数据库中已经存在管理员，初始化脚本会保留现有管理员，不会重置其登录信息。
 未登录访问 `/admin` 会跳转登录页，普通用户访问会返回首页。
 
 ## 三、环境变量（可选，后台亦可配置）
 ```
-ADMIN_PASSWORD=admin123
+ADMIN_PASSWORD=请设置至少12位的强密码
 ADMIN_USERNAME=admin
 ADMIN_EMAIL=admin@trendhub.local
 GITHUB_TOKEN=github_pat_xxx
-COOKIE_SECURE=0
+COOKIE_SECURE=auto
+SITE_URL=https://trend.example.com
+TRUST_PROXY=1
 SMTP_HOST=smtp.qq.com
 SMTP_PORT=465
 SMTP_USER=you@qq.com
@@ -104,4 +110,18 @@ SMTP_FROM=TrendHub <you@qq.com>
 
 `GITHUB_TOKEN` 可选，但推荐配置，用于提高 GitHub Search API 配额。Token 只在服务端读取，不会写入 SQLite 或返回前端；仅需公开仓库读取权限。
 
-通过 HTTPS 部署时将 `COOKIE_SECURE` 设置为 `1`；本地 HTTP 运行保持为 `0`。
+`SITE_URL` 必须填写用户在浏览器中实际访问的唯一地址。反向代理部署时设置 `TRUST_PROXY=1`，并向应用传递
+`Host`、`X-Forwarded-Host`、`X-Forwarded-Proto`、`X-Forwarded-For` 与 `X-Real-IP`。可直接参考
+[`deploy/nginx.conf.example`](deploy/nginx.conf.example)。旧的 `NEXT_PUBLIC_SITE_URL` 仍可作为兼容回退，但新部署应使用 `SITE_URL`。
+
+`COOKIE_SECURE=auto` 会根据 `SITE_URL` 或可信代理传递的协议自动决定是否设置 Secure Cookie；也可显式使用 `1` 或 `0`。
+不要在同一套部署中混用域名、服务器 IP、`localhost` 和 `127.0.0.1`，浏览器不会跨主机共享登录 Cookie。
+
+## 四、安全与账号行为
+
+- `/admin` 页面和 `/api/admin/*` 接口都由服务端实时校验管理员角色，普通用户会进入无权访问页。
+- 管理员修改用户资料、角色、状态或重置密码时，需要再次验证自己的当前密码；不能修改其他管理员的资料或密码。
+- 管理员重置用户密码后，该用户全部会话立即失效，并在下次登录时被要求设置新密码。
+- 修改自己的用户名、邮箱或密码需要验证当前密码；密码长度为 12～128 位。
+- 登录和注册带持久化频率限制；账号、后台和鉴权响应禁止缓存，浏览器返回页面时会重新核验会话。
+- 所有写接口拒绝跨站浏览器请求，并默认发送防点击劫持、内容嗅探和引用来源限制等安全响应头。

@@ -352,6 +352,7 @@ export default function Home() {
   const [papers, setPapers] = useState(null);
   const [paperCats, setPaperCats] = useState([]);
   const [stats, setStats] = useState(null);
+  const [siteConfig, setSiteConfig] = useState({ siteName: 'TrendHub', siteDescription: '实时聚合 GitHub Trending、科技资讯与前沿论文' });
 
   const [repoFav, toggleRepoFav, repoDismissed, dismissRepo] = useFav('repo', auth.user);
   const [newsFav, toggleNewsFav] = useFav('news', auth.user);
@@ -359,17 +360,39 @@ export default function Home() {
   const [devFav, toggleDevFav] = useFav('developer', auth.user);
 
   useEffect(() => {
-    fetch('/api/auth/me').then((r) => r.json()).then((data) => {
-      setAuth({ loading: false, user: data.user || null, isAdmin: !!data.isAdmin });
-    });
+    let active = true;
+    const refreshAuth = () => {
+      fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (active) setAuth({ loading: false, user: data.user || null, isAdmin: !!data.isAdmin });
+        })
+        .catch(() => {
+          if (active) setAuth({ loading: false, user: null, isAdmin: false });
+        });
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshAuth();
+    };
+    refreshAuth();
+    window.addEventListener('focus', refreshAuth);
+    window.addEventListener('pageshow', refreshAuth);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', refreshAuth);
+      window.removeEventListener('pageshow', refreshAuth);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, []);
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    setAuth((current) => ({ ...current, user: null }));
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    setAuth({ loading: false, user: null, isAdmin: false });
   };
 
   useEffect(() => { fetch('/api/stats').then((r) => r.json()).then(setStats); }, []);
+  useEffect(() => { fetch('/api/config').then((r) => r.json()).then(setSiteConfig); }, []);
 
   const loadRepos = useCallback(() => {
     setRepos(null);
@@ -451,7 +474,7 @@ export default function Home() {
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-slate-950/70 border-b border-slate-200/60 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-          <div className="font-bold text-lg flex items-center gap-2"><span className="text-brand">◆</span> TrendHub</div>
+          <div className="font-bold text-lg flex items-center gap-2"><span className="text-brand">◆</span> {siteConfig.siteName}</div>
           <div className="hidden md:flex text-xs text-slate-500 gap-4">
             {stats && (<>
               <span>今日开源 {stats.repos_today}</span>
@@ -463,10 +486,8 @@ export default function Home() {
             <a href="/dashboard" className="btn-ghost">看板</a>
             {auth.user ? (<>
               <a href="/favorites" className="btn-ghost">收藏</a>
-              <button className="btn-ghost" onClick={logout} title="退出登录">
-                <span className="hidden sm:inline">{auth.user.display_name}</span>
-                <span>退出</span>
-              </button>
+              <a href="/account" className="btn-ghost"><span className="hidden sm:inline">{auth.user.display_name}</span><span>账号</span></a>
+              <button className="btn-ghost" onClick={logout} title="退出登录">退出</button>
             </>) : !auth.loading && <a href="/login" className="btn-ghost">登录 / 注册</a>}
             {auth.isAdmin && <a href="/admin" className="btn-ghost">后台</a>}
             <button onClick={toggleTheme} className="btn-ghost">{dark ? '☀️' : '🌙'}</button>
@@ -478,7 +499,7 @@ export default function Home() {
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
           开源热榜 <span className="text-brand">·</span> 全网热点 <span className="text-brand">·</span> 前沿论文
         </h1>
-        <p className="mt-3 text-slate-500 dark:text-slate-400">实时聚合 GitHub Trending、科技/经济/政治中文资讯与计算机论文</p>
+        <p className="mt-3 text-slate-500 dark:text-slate-400">{siteConfig.siteDescription}</p>
         <div className="mt-6 max-w-md mx-auto">
           <input className="input text-center" placeholder="搜索项目、新闻或论文（空格分隔多个关键词）…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
@@ -604,7 +625,7 @@ export default function Home() {
       </div>
 
       <footer className="border-t border-slate-200/60 dark:border-slate-800 py-6 text-center text-xs text-slate-400">
-        TrendHub · 数据来源 GitHub Trending、公开 RSS 源、arXiv、Papers with Code 及各平台热榜
+        {siteConfig.siteName} · 数据来源 GitHub Trending、公开 RSS 源、arXiv、Papers with Code 及各平台热榜
       </footer>
     </div>
   );

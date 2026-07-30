@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '../../../../lib/user-auth';
-import { checkAuth } from '../../../../lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json({ user: getCurrentUser(), isAdmin: checkAuth() });
+  const user = getCurrentUser();
+  const response = NextResponse.json({ user, isAdmin: user?.role === 'admin' });
+  response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+  return response;
 }

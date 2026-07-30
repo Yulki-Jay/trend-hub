@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { adminFetch } from './api';
 
 export function useAdminSettings() {
   const [settings, setSettings] = useState(null);
-  const load = () => fetch('/api/admin/settings').then((r) => r.json()).then(setSettings);
+  const load = () => adminFetch('/api/admin/settings').then((r) => r.json()).then(setSettings);
   useEffect(() => { load(); }, []);
   const save = async (patch) => {
-    const response = await fetch('/api/admin/settings', {
+    const response = await adminFetch('/api/admin/settings', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     });
@@ -23,7 +24,7 @@ export function useFlash() {
 }
 
 export async function runAdminAction(payload) {
-  const response = await fetch('/api/admin/actions', {
+  const response = await adminFetch('/api/admin/actions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });

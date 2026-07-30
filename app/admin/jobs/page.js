@@ -2,13 +2,14 @@
 import { useEffect, useState } from 'react';
 import { Loading, PageHeader, Panel, StatusBadge, Toast } from '../components';
 import { runAdminAction, useAdminSettings, useFlash } from '../hooks';
+import { adminFetch } from '../api';
 
 export default function JobsAdmin() {
   const { settings, setSettings, save } = useAdminSettings();
   const [logs, setLogs] = useState(null);
   const [busy, setBusy] = useState('');
   const { message, flash } = useFlash();
-  const loadLogs = () => fetch('/api/admin/actions').then((r) => r.json()).then((d) => setLogs(d.logs || []));
+  const loadLogs = () => adminFetch('/api/admin/actions').then((r) => r.json()).then((d) => setLogs(d.logs || []));
   useEffect(() => { loadLogs(); }, []);
   if (!settings || !logs) return <Loading />;
   const set = (key, value) => setSettings((current) => ({ ...current, [key]: value }));

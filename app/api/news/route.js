@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '../../../lib/db';
 import { buildSearch, buildRelevance } from '../../../lib/search';
+import { sanitizePublicHttpUrl } from '../../../lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,10 @@ export async function GET(req) {
   sql += ' ORDER BY ' + rel.expr + 'published_at DESC LIMIT 120';
   params.push(...rel.params);
 
-  const items = db.prepare(sql).all(...params);
+  const items = db.prepare(sql).all(...params).map((item) => ({
+    ...item,
+    url: sanitizePublicHttpUrl(item.url),
+    image: sanitizePublicHttpUrl(item.image),
+  }));
   return NextResponse.json({ items });
 }

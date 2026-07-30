@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loading, PageHeader, Panel, Toast } from '../components';
 import { runAdminAction, useFlash } from '../hooks';
+import { adminFetch } from '../api';
 
 const CATEGORIES = [['tech', '科技'], ['economy', '经济'], ['politics', '政治']];
 
@@ -11,14 +12,14 @@ export default function NewsAdmin() {
   const [draft, setDraft] = useState({ name: '', url: '', category: 'tech' });
   const [busy, setBusy] = useState('');
   const { message, flash } = useFlash();
-  const load = () => fetch('/api/admin/sources').then((r) => r.json()).then((d) => setSources(d.items || []));
+  const load = () => adminFetch('/api/admin/sources').then((r) => r.json()).then((d) => setSources(d.items || []));
   useEffect(() => { load(); }, []);
   const visible = useMemo(() => (sources || []).filter((source) => !filter || source.category === filter), [sources, filter]);
   if (!sources) return <Loading />;
 
   const add = async () => {
     if (!draft.name || !draft.url) return flash('请填写数据源名称和 RSS 地址');
-    const response = await fetch('/api/admin/sources', {
+    const response = await adminFetch('/api/admin/sources', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft),
     });
     const data = await response.json();
@@ -27,7 +28,7 @@ export default function NewsAdmin() {
     load(); flash('新闻源已添加');
   };
   const toggle = async (source) => {
-    await fetch('/api/admin/sources', {
+    await adminFetch('/api/admin/sources', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: source.id, enabled: !source.enabled }),
     });
@@ -35,7 +36,7 @@ export default function NewsAdmin() {
   };
   const remove = async (source) => {
     if (!window.confirm(`确认删除新闻源“${source.name}”？`)) return;
-    await fetch('/api/admin/sources', {
+    await adminFetch('/api/admin/sources', {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: source.id }),
     });
     load(); flash('新闻源已删除');

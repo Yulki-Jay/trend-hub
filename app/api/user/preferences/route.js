@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '../../../../lib/db';
 import { getCurrentUser } from '../../../../lib/user-auth';
+import { sanitizePublicHttpUrl } from '../../../../lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,13 @@ function cleanItem(type, item) {
   const out = {};
   for (const field of FIELDS[type]) {
     const value = item?.[field];
-    if (value !== undefined && value !== null) out[field] = value;
+    if (value === undefined || value === null) continue;
+    if (['url', 'image', 'avatar', 'repo_url'].includes(field)) {
+      const safeUrl = sanitizePublicHttpUrl(value);
+      if (safeUrl) out[field] = safeUrl;
+    } else {
+      out[field] = value;
+    }
   }
   return out;
 }
@@ -37,7 +44,7 @@ export async function GET(req) {
     WHERE user_id=? AND item_type=? ORDER BY id DESC
   `).all(user.id, type)) {
     const item = parseData(row.item_data);
-    if (item) favorites[row.item_key] = item;
+    if (item) favorites[row.item_key] = cleanItem(type, item);
   }
   const dismissed = db.prepare(`
     SELECT item_key FROM user_dismissals WHERE user_id=? AND item_type=? ORDER BY id DESC

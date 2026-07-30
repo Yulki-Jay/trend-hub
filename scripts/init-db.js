@@ -1,7 +1,11 @@
 const db = require('../lib/db');
 const { ensureDefaultAdmin } = require('../lib/user-auth');
+const crypto = require('crypto');
 
 const defaults = {
+  site_name: 'TrendHub',
+  site_description: '实时聚合 GitHub Trending、科技资讯与前沿论文',
+  registration_enabled: '1',
   smtp_host: process.env.SMTP_HOST || '',
   smtp_port: process.env.SMTP_PORT || '465',
   smtp_secure: process.env.SMTP_SECURE || '1',
@@ -27,10 +31,14 @@ const insertSetting = db.prepare(
 );
 for (const [k, v] of Object.entries(defaults)) insertSetting.run(k, String(v));
 
+const generatedAdminPassword = process.env.ADMIN_PASSWORD
+  ? null
+  : `${crypto.randomBytes(18).toString('base64url')}!aA1`;
 const defaultAdmin = ensureDefaultAdmin({
   username: process.env.ADMIN_USERNAME || 'admin',
   email: process.env.ADMIN_EMAIL || 'admin@trendhub.local',
-  password: process.env.ADMIN_PASSWORD || 'admin123',
+  password: process.env.ADMIN_PASSWORD || generatedAdminPassword,
+  mustChangePassword: !process.env.ADMIN_PASSWORD,
 });
 
 const seedSources = [
@@ -88,3 +96,7 @@ if (!hasSource) {
 
 console.log('DB initialized. Sources:', db.prepare('SELECT COUNT(*) c FROM sources').get().c);
 console.log('Admin account:', defaultAdmin.username);
+if (generatedAdminPassword) {
+  console.log('One-time admin password:', generatedAdminPassword);
+  console.log('Please sign in and change this password immediately. It will not be shown again.');
+}

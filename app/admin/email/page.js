@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Loading, PageHeader, Panel, Toast } from '../components';
 import { runAdminAction, useAdminSettings, useFlash } from '../hooks';
+import { adminFetch } from '../api';
 
 export default function EmailAdmin() {
   const { settings, setSettings, save } = useAdminSettings();
@@ -10,7 +11,7 @@ export default function EmailAdmin() {
   const [testEmail, setTestEmail] = useState('');
   const [busy, setBusy] = useState('');
   const { message, flash } = useFlash();
-  const loadRecipients = () => fetch('/api/admin/recipients').then((r) => r.json()).then((d) => setRecipients(d.items || []));
+  const loadRecipients = () => adminFetch('/api/admin/recipients').then((r) => r.json()).then((d) => setRecipients(d.items || []));
   useEffect(() => { loadRecipients(); }, []);
   if (!settings || !recipients) return <Loading />;
   const set = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
@@ -36,7 +37,7 @@ export default function EmailAdmin() {
     setBusy('');
   };
   const addRecipient = async () => {
-    const response = await fetch('/api/admin/recipients', {
+    const response = await adminFetch('/api/admin/recipients', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: newEmail }),
     });
     const data = await response.json();
@@ -44,14 +45,14 @@ export default function EmailAdmin() {
     setNewEmail(''); loadRecipients(); flash('收件人已添加');
   };
   const toggleRecipient = async (recipient) => {
-    await fetch('/api/admin/recipients', {
+    await adminFetch('/api/admin/recipients', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: recipient.id, enabled: !recipient.enabled }),
     });
     loadRecipients();
   };
   const removeRecipient = async (id) => {
-    await fetch('/api/admin/recipients', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    await adminFetch('/api/admin/recipients', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
     loadRecipients(); flash('收件人已删除');
   };
 
